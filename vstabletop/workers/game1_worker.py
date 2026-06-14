@@ -1,10 +1,20 @@
 # Have a choice of multiple images
+from functools import lru_cache
 from phantominator import shepp_logan
 import plotly
 import plotly.express as px
 import numpy as np
 import json
 import plotly.graph_objects as go
+
+
+@lru_cache(maxsize=16)
+def _shepp_logan_cached(n_first):
+    """Generate and cache the Shepp-Logan phantom at a given matrix size.
+    lru_cache avoids recomputing the phantom when the user moves sliders
+    that don't change the underlying resolution."""
+    img, _, _ = shepp_logan((n_first, n_first, 1), MR=True, zlims=(-.25, .25))
+    return np.squeeze(img).copy()
 
 # TODO add function for a choice of different medical modalities
 
@@ -37,8 +47,7 @@ def get_image(fov,n,n_zf,min_level,max_level):
     fov_portion = fov/fov_orig
     print(f'fov_portion = {fov_portion}')
     n_first = int(np.ceil(0.5*(n / fov_portion)))*2
-    img, _, _ = shepp_logan((n_first, n_first, 1), MR=True, zlims=(-.25, .25))
-    img = np.squeeze(img)
+    img = _shepp_logan_cached(n_first)
 
     # Normalize before anything else
     # Normalize to between (0,1)

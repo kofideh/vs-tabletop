@@ -1,5 +1,6 @@
 # Game 2 backend functions!
 # K-space magiK
+from functools import lru_cache
 import numpy as np
 import scipy.fft as fft
 import json
@@ -10,6 +11,12 @@ from PIL import ImageOps, Image
 from vstabletop.paths import IMG_PATH
 import fnmatch
 from scipy import ndimage
+
+
+@lru_cache(maxsize=4)
+def _shepp_logan_cached(N):
+    img, _, _ = shepp_logan((N, N, 1), MR=True, zlims=(-.25, .25))
+    return np.squeeze(img).copy()
 
 def game2_worker_convert(input, scale, forward=True):
     # Perform forward or backward, 1D or 2D FT
@@ -109,6 +116,7 @@ def make_graph(data,scale,type):
 
     return fig
 
+@lru_cache(maxsize=1)
 def make_empty_graphs():
     fig1 = make_graph(np.zeros(256), scale=np.linspace(-1,1,256),type='signal')
     fig2 = make_graph(np.zeros(256), scale=np.linspace(-1,1,256),type='spectrum')
@@ -186,8 +194,7 @@ def get_2d_data(type, N,range,name,info={}):
     elif name == 'delta':
         data2d[int(N[0]/2),int(N[1]/2)] = 1
     elif name == 'shepp-logan':
-        img, _, _ = shepp_logan((N[0], N[1], 1), MR=True, zlims=(-.25, .25))
-        data2d = np.squeeze(img)
+        data2d = _shepp_logan_cached(N[0])
     elif name == 'cat':
         data2d = read_image_grayscale(IMG_PATH / 'Game2' / 'beet_cat.png')
     elif name == 'mri-x':
@@ -266,6 +273,7 @@ def get_1d_data(type, N, range, name, info={}):
 
     return data1d, xmodel
 
+@lru_cache(maxsize=32)
 def read_image_grayscale(data_path, N=None):
     try:
         im = Image.open(data_path)

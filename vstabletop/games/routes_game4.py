@@ -1,5 +1,6 @@
 
 from flask import flash, render_template, session, redirect, url_for
+from flask_login import login_required
 from vstabletop.forms import *
 from vstabletop.workers.game4_worker import game4_worker_simulation, game4_worker_image
 import vstabletop.utils as utils
@@ -10,6 +11,7 @@ from .. import socketio
 from .routes_game1 import bp_games
 
 @bp_games.route('/4',methods=["GET","POST"])
+@login_required
 def game4():
     # Input fields
     game4form = Game4Form()
@@ -86,7 +88,7 @@ def update_mc_progress(msg):
     session['game4']['progress'].num_correct = sum(status)
     session['game4']['progress'].update_stars()
 
-    print('Game 4 progress updated: ', session['game3']['progress'])
+    print('Game 4 progress updated: ', session['game4']['progress'])
 
     socketio.emit('renew stars', {'stars': session['game4']['progress'].num_stars})
 

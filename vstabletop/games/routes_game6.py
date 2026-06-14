@@ -1,5 +1,6 @@
 
 from flask import flash, render_template, session, redirect, url_for
+from flask_login import login_required
 from vstabletop.workers.game6_worker import game6_worker_sim,game6_worker_map,initialize_phantom, calculate_circle
 from vstabletop.forms import Game6Form
 import vstabletop.utils as utils
@@ -11,6 +12,7 @@ from .routes_game1 import bp_games
 DEFAULT_TIS = [5,10,20,50,100,500] # Seconds
 DEFAULT_TES = [8,16,24,32,64,128] # Seconds
 @bp_games.route('/6',methods=["GET","POST"])
+@login_required
 def game6():
     initialize_phantom(session)
     utils.update_session_subdict(session,'game6',{'type':'sim','t1_map_TIs': DEFAULT_TIS,'t2_map_TEs': DEFAULT_TES})

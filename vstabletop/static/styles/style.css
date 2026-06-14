@@ -15,8 +15,8 @@
 }
 
 img{
-    width: 120%;
-    height: 100%;
+    max-width: 100%;
+    height: auto;
 }
 #main-panel{
     background-color: #555555;
@@ -176,7 +176,7 @@ section{
 /*padding: 40px;*/
 /*}*/
 
-canvas {
+#canvas {
   position: fixed;
   bottom: 0;
   left: 0;
@@ -207,11 +207,10 @@ canvas {
 }
 
 .row.collapse {
-    margin-left: -600px;
+    margin-left: -600px !important;
     left: 0;
 	transition: margin-left .15s linear;
 }
-
 .row.collapse.show {
     margin-left: 0 !important;
 }

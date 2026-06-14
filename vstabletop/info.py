@@ -3,7 +3,8 @@ import numpy as np
 # Game names
 GAMES = ['What is in an image?',
           'k-space magik', 'Brains, please!', 'Fresh Blood',
-         'Proton\'s got moves','Relaxation Station','Puzzled by Projection I','Puzzled by Projection II']
+         'Proton\'s got moves','Relaxation Station','Puzzled by Projection I','Puzzled by Projection II',
+         'Artifacts!', 'Pulse Programmer']
 INTRO = ['Learn about imaging basics!',
          'Travel around k-space and map it out!',
          'Look inside your head - with filters!',
@@ -11,7 +12,9 @@ INTRO = ['Learn about imaging basics!',
          'You can make the magnetization dance',
          'Measure the T1 and T2 of anything',
          'Make images with your brain',
-         'Reconstruct objects with your brain']
+         'Reconstruct objects with your brain',
+         'See how MRI images can go wrong!',
+         'Build MRI pulse sequences with pypulseq!']
 
 GAMES_DICT = {}
 GAMES_INFO = {}
@@ -917,4 +920,304 @@ GAME8_BACKGROUND = {
                             Then we use the regular IFFT on the estimated cartesian data to reconstruct the image.\
                     </li>\
                      </ul>"
+}
+
+# Game 9 background definitions
+GAME9_BACKGROUND = {
+    'Aliasing (Wrap-around)':
+        'Aliasing occurs when the phase-encode (PE) field-of-view (FOV) is set smaller than the extent of '
+        'the imaged object. Signal originating from outside the FOV is "wrapped" back in, appearing '
+        'superimposed on the other side of the image. Prevention: increase the PE FOV, or apply saturation '
+        'bands outside the desired imaging volume.',
+
+    'Gibbs Ringing (Truncation Artifact)':
+        'When k-space is sampled up to a finite spatial frequency, sharp intensity edges (e.g. the '
+        'brain–skull boundary) produce oscillatory "ringing" on either side. This is the Gibbs phenomenon: '
+        'the Fourier series of a step function always overshoots by ≈9%. Prevention: acquire more k-space '
+        'lines (larger matrix), or apply a Hanning/Fermi apodization filter before reconstruction.',
+
+    'Motion Artifact':
+        'Each phase-encode line is acquired at a different moment in time. If the patient moves during '
+        'the acquisition (e.g. breathing, cardiac motion, swallowing), the k-space lines are inconsistent. '
+        'The resulting image shows "ghost" copies of moving structures displaced in the PE direction, spaced '
+        'by FOV / (motion frequency). Prevention: breath-hold sequences, cardiac gating, fast acquisitions, '
+        'or motion-correction algorithms.',
+
+    'Chemical Shift Artifact':
+        'Fat protons resonate at a slightly different frequency (~3.5 ppm, or ~220 Hz at 1.5 T) than water '
+        'protons. In the frequency-encode direction this frequency offset is misinterpreted as a spatial '
+        'shift, so fat appears displaced relative to water structures. The displacement in pixels = '
+        '(fat–water frequency offset) / (receiver bandwidth per pixel). Prevention: increase receiver '
+        'bandwidth, use fat suppression, or switch to a spin-echo sequence with short TE.',
+
+    'Susceptibility Artifact':
+        'Materials with different magnetic susceptibilities (air, bone, metal implants) distort the local '
+        'B0 field when placed in the scanner. The resulting local frequency offsets cause geometric '
+        'distortion in the frequency-encode direction and signal voids where dephasing within a voxel is '
+        'severe (short T2*). Gradient-echo sequences are more susceptible than spin-echo. Prevention: '
+        'use spin-echo, increase bandwidth, or apply SEMAC/z-SEMAC for metal implants.',
+}
+
+# Game 9 instructions (lab manual)
+GAME9_INSTRUCTIONS = {
+    'tabs': [f'Step {a + 1}' for a in range(5)],
+    'titles': [
+        'Aliasing (Wrap-around)',
+        'Gibbs Ringing',
+        'Motion Artifact',
+        'Chemical Shift',
+        'Susceptibility Artifact',
+    ],
+    'explorations': [
+        {   # Step 1 — Aliasing
+            'Select the aliasing artifact':
+                'Make sure the Aliasing button is active in the Artifact selector. '
+                'Press RUN with the default PE FOV fraction of 0.70. '
+                'Compare the Reference image on the left with the artifact image on the right.',
+            'Observe the wrap-around':
+                'Move the PE FOV fraction slider to 0.50 and press RUN. '
+                'Which part of the brain appears on top of which other part? '
+                'Which direction (horizontal or vertical) does the wrapping occur?',
+            'Reduce the FOV further':
+                'Set FOV fraction to 0.30. How many "copies" of the brain can you now count in the artifact image?',
+            'Switch phantoms':
+                'Change the Phantom selector to Brainweb and repeat the above. '
+                'Does the aliasing pattern look different? Why?',
+            'Restore FOV':
+                'Set FOV fraction back to 1.00 and press RUN to confirm the artifact disappears.',
+        },
+        {   # Step 2 — Gibbs
+            'Select the Gibbs artifact':
+                'Click the Gibbs button in the Artifact selector. '
+                'Press RUN with 100% k-space kept. '
+                'The artifact image should look identical to the reference.',
+            'Truncate k-space':
+                'Reduce the k-space fraction to 50% and press RUN. '
+                'Where in the image do you first notice ringing artifacts?',
+            'Increase truncation':
+                'Set k-space fraction to 20% and press RUN. '
+                'Describe the ringing pattern. At which tissue boundaries is it strongest?',
+            'Explore the trade-off':
+                'Scan from 100% down to 10% in steps of 10%. '
+                'What are the consequences for image sharpness vs. ringing?',
+            'Switch phantoms':
+                'Repeat with the Brainweb phantom. '
+                'Does the ringing look different compared to the Shepp-Logan?',
+        },
+        {   # Step 3 — Motion
+            'Select the motion artifact':
+                'Click the Motion button. Set amplitude to 0.5 and frequency to 3. Press RUN. '
+                'In which direction do the ghost images appear?',
+            'Change amplitude':
+                'Vary the motion amplitude from 0.0 to 1.0 in steps of 0.25 (press RUN after each change). '
+                'How does the intensity of the ghosts change?',
+            'Change frequency':
+                'Keep amplitude at 0.5. Change frequency from 1 to 10 cycles (press RUN each time). '
+                'How does the spacing between ghost images change as frequency increases?',
+            'Identify the ghost-spacing rule':
+                'For frequencies 2, 4, and 8 cycles, measure (approximately) how far apart the '
+                'ghost images are. Can you derive a formula relating ghost spacing to frequency?',
+            'Clinical connection':
+                'Motion artifacts are most common from breathing and cardiac motion. '
+                'What scan strategies could reduce motion artifacts? (Check Definitions for a hint.)',
+        },
+        {   # Step 4 — Chemical shift
+            'Select the chemical shift artifact':
+                'Click the Chem. Shift button. Set fat shift to 0 and press RUN. '
+                'The images should look identical.',
+            'Observe the shift':
+                'Set fat shift to 10 px and press RUN. '
+                'Can you identify the bright or dark rim at the fat-water interface?',
+            'Increase the shift':
+                'Try shifts of 15, 20, and 30 px. '
+                'On which side of the boundary do you see a bright rim? On which side a dark rim?',
+            'Switch phantoms':
+                'Change to Brainweb and repeat. '
+                'The Brainweb phantom has a real fat tissue layer around the skull. '
+                'Is the artifact more or less visible than with the Shepp-Logan?',
+            'Clinical context':
+                'A large fat shift means a narrow receiver bandwidth. '
+                'What happens to SNR if you widen the bandwidth to reduce the shift?',
+        },
+        {   # Step 5 — Susceptibility
+            'Select susceptibility':
+                'Click the Susceptibility button. Set strength to 0.50, Source X to 0, Source Y to 0. '
+                'Press RUN. Describe what you see compared to the reference.',
+            'Observe distortion and void':
+                'What shape is the distortion in the artifact image? '
+                'In which direction (horizontal or vertical) does the geometry change?',
+            'Move the source':
+                'Change Source X from -0.5 to 0.5 (press RUN at a few positions). '
+                'Then try moving Source Y. How does the pattern change?',
+            'Vary the strength':
+                'Keep Source X=0, Source Y=0. Vary strength from 0.1 to 1.0. '
+                'Describe how the signal void grows.',
+            'Compare artifacts':
+                'Go back and look at chemical shift (Step 4) and susceptibility (Step 5). '
+                'Both cause distortion near tissue boundaries. '
+                'What distinguishes them in terms of appearance?',
+        },
+    ],
+    'tasks': {
+        'Task 1: Aliasing — Identify the wrap direction':
+            'Set FOV fraction to 0.50. Take note of which half of the brain wraps onto the other half. '
+            'Confirm that increasing FOV fraction back to 1.0 eliminates the artifact.',
+        'Task 2: Gibbs — Find the ringing threshold':
+            'Find the k-space fraction below which ringing is clearly visible along the brain boundary. '
+            'Report this threshold value.',
+        'Task 3: Motion — Derive the ghost spacing rule':
+            'Using your observations for frequencies 2, 4, and 8 cycles, write down the relationship '
+            'between motion frequency and ghost spacing (in pixels or fraction of FOV).',
+        'Task 4: Chemical shift — Identify bright and dark rims':
+            'With shift = 15 px, identify whether the bright rim appears on the left or right of '
+            'the fat–brain boundary, and explain why using the frequency-offset model.',
+        'Task 5: Susceptibility — Compare to chemical shift':
+            'In one or two sentences, explain two observable differences between the susceptibility '
+            'artifact (Step 5) and the chemical shift artifact (Step 4).',
+    },
+}
+
+# ── Game 10: Pulse Programmer ─────────────────────────────────────────────────
+
+GAME10_BACKGROUND = {
+    'Pulse sequence':
+        'An MRI pulse sequence is a precisely timed series of radiofrequency (RF) pulses and magnetic '
+        'field gradient pulses that controls how the MRI scanner acquires data. The sequence determines '
+        'image contrast, resolution, scan time, and which artifacts may appear. Three fundamental '
+        'sequences are: Gradient Echo (GRE), Spin Echo (SE), and Inversion Recovery (IR).',
+
+    'Gradient Echo (GRE)':
+        'GRE uses a single RF excitation pulse (flip angle &lt; 90°) followed by a readout gradient '
+        'that first dephases (prephase) and then rephases spins to form a gradient echo. Because no '
+        'refocusing pulse is used, the echo is a gradient echo and is sensitive to T2* rather than T2. '
+        'GRE sequences are fast and are used for dynamic contrast imaging, angiography, and cardiac MRI. '
+        'The echo time TE is measured from the center of the RF pulse to the peak of the echo.',
+
+    'Spin Echo (SE)':
+        'SE adds a 180° refocusing pulse at time TE/2 after the 90° excitation pulse. This refocusing '
+        'pulse creates a spin echo at time TE by rephasing spins that dephased due to B0 inhomogeneity. '
+        'As a result SE is sensitive to T2 (not T2*), making it more robust to susceptibility artifacts. '
+        'SE is widely used for brain, spine, and musculoskeletal imaging.',
+
+    'Inversion Recovery (IR)':
+        'IR prepends a 180° inversion pulse a time TI (inversion time) before the excitation pulse. '
+        'During TI, longitudinal magnetization Mz recovers from −M0 toward +M0 at a rate governed by T1. '
+        'By choosing TI = T1 × ln(2) ≈ 0.693 × T1 of a specific tissue, that tissue\'s Mz crosses zero '
+        'and is nulled in the image. STIR (short TI) nulls fat; FLAIR (long TI) nulls cerebrospinal fluid.',
+
+    'pypulseq':
+        'pypulseq is an open-source Python library for creating MRI pulse sequences in the Pulseq '
+        'vendor-neutral file format (.seq). Sequences designed in pypulseq can be executed on any '
+        'scanner that has a Pulseq interpreter (Siemens, GE, Bruker, open-source MR systems). '
+        'pypulseq mirrors the structure of the original Pulseq MATLAB toolbox. Key functions include '
+        'make_sinc_pulse(), make_trapezoid(), make_adc(), and Sequence.add_block().',
+
+    'k-space and gradients':
+        'In MRI, gradients encode spatial information by making the resonant frequency depend on '
+        'position. Each TR acquisition fills one line of k-space (one phase-encode step). The readout '
+        'gradient sweeps from −kmax to +kmax, sampling the signal at each point. The phase-encode '
+        'gradient steps the ky position before each readout. Together they map out the full 2D k-space, '
+        'which is Fourier-transformed to reconstruct the image.',
+}
+
+GAME10_INSTRUCTIONS = {
+    'tabs': [f'Step {a + 1}' for a in range(4)],
+    'titles': [
+        'Gradient Echo (GRE)',
+        'Spin Echo (SE)',
+        'Inversion Recovery (IR)',
+        'Code Editor',
+    ],
+    'explorations': [
+        {   # Step 1 — GRE
+            'Load GRE sequence':
+                'Select "GRE" in the Sequence selector and press RUN. '
+                'Observe the five-row sequence diagram: RF, Gz (slice), Gy (phase), Gx (read), ADC.',
+            'Identify key timings':
+                'The RF pulse is at t=0. The readout gradient (Gx) and ADC window appear at time TE '
+                'after the RF center. What does the prephase Gx gradient (negative lobe) do?',
+            'Change TE':
+                'Try TE = 6, 10, 20 ms and press RUN each time. How does the diagram change? '
+                'What is the minimum TE you can set before the diagram warns of an error?',
+            'Change TR':
+                'Set TE = 6 ms and try TR = 10, 25, 100 ms. How does the gap after the readout change?',
+            'Change flip angle':
+                'Try FA = 10°, 30°, 90°. The FA determines how much longitudinal magnetization is '
+                'tipped into the transverse plane. How does a smaller FA affect signal and steady-state?',
+        },
+        {   # Step 2 — SE
+            'Load SE sequence':
+                'Select "Spin Echo" and press RUN with default parameters. '
+                'Find the two RF pulses (90° and 180°) in the RF row.',
+            'Locate the refocusing pulse':
+                'The 180° pulse appears at TE/2. After it, the echo forms at TE. '
+                'Why is the 180° pulse positioned exactly at TE/2?',
+            'Change TE':
+                'Try TE = 20, 50, 100 ms. How does the spacing between the 90° and 180° pulses change? '
+                'What happens to the gap after the 180° pulse (before readout)?',
+            'Compare GRE vs SE':
+                'Switch between GRE and SE (same TE, TR). What is the main structural difference '
+                'between the two diagrams? Which sequence has no 180° refocusing pulse?',
+            'Look at the k-space':
+                'Both GRE and SE fill k-space the same way (one PE line per TR). '
+                'The k-space trajectory diagram shows 8 horizontal lines. '
+                'The red dashed line is ky = 0 (center of k-space). Why is this line most important?',
+        },
+        {   # Step 3 — IR
+            'Load IR sequence':
+                'Select "Inv. Recovery" and press RUN. A 180° inversion pulse now appears '
+                'at the beginning of the sequence. The TI parameter becomes visible.',
+            'Identify TI':
+                'The excitation RF pulse (blue) starts at time TI after the inversion pulse center. '
+                'Observe how TI affects the gap between the two RF events.',
+            'Null fat with STIR':
+                'Fat has T1 ≈ 270 ms at 1.5T. The null point is TI = T1 × ln(2) ≈ 187 ms. '
+                'Set TI = 187, TR = 3000 ms, TE = 20 ms and press RUN. '
+                'This is the STIR (Short TI Inversion Recovery) configuration.',
+            'Null CSF with FLAIR':
+                'CSF has T1 ≈ 4000 ms at 3T. Null point TI ≈ 2800 ms. '
+                'Set TI = 2800, TR = 8000 ms, TE = 100 ms and press RUN. '
+                'This is the FLAIR configuration used in clinical brain imaging.',
+            'Compare all three':
+                'Review GRE, SE, and IR side by side. Which sequence has the most RF pulses per TR? '
+                'Which is fastest (shortest minimum TR)? Which is most immune to susceptibility?',
+        },
+        {   # Step 4 — Code editor
+            'Open the code editor':
+                'Click the "Code Editor" tab at the top. '
+                'The editor is pre-loaded with the current sequence code (GRE by default). '
+                'You can also use the Quick Load buttons to load GRE, SE, or IR starter code.',
+            'Read the code':
+                'Scan through the code. Identify: (1) system limits, (2) sequence parameters, '
+                '(3) event creation (make_sinc_pulse, make_trapezoid, make_adc), '
+                '(4) the loop over phase-encode lines.',
+            'Run and inspect output':
+                'Press RUN. The console shows text output; the figure panel shows the pypulseq '
+                'sequence diagram generated by seq.plot(). This diagram is more detailed than the '
+                'Guided Builder schematic.',
+            'Modify a parameter':
+                'Change flip = 30 to flip = 10 in the code and press RUN again. '
+                'Does the sequence diagram change? Describe how a smaller flip angle affects the '
+                'waveform amplitudes.',
+            'Write your own sequence':
+                'Try modifying the GRE code to add a spoiler gradient after the readout '
+                '(hint: use make_trapezoid(channel="x", area=...) and seq.add_block()). '
+                'Spoiler gradients dephase residual transverse magnetization before the next TR.',
+        },
+    ],
+    'tasks': {
+        'Task 1: GRE — find the minimum TE':
+            'Set FA=30°, TR=25 ms. Decrease TE until the diagram clamps to the minimum. '
+            'Report this minimum TE value and explain which events determine it.',
+        'Task 2: SE — explain the symmetric timing':
+            'With TE=40 ms, verify that the 180° pulse center is at exactly TE/2=20 ms. '
+            'Explain in one sentence why the spin echo forms at TE rather than at TE/2.',
+        'Task 3: IR — design a FLAIR sequence':
+            'Choose TI, TR, and TE to null CSF (T1 ≈ 4000 ms at 3T) and achieve T2 weighting. '
+            'Report your parameter choices and run the sequence to verify the diagram.',
+        'Task 4: Code — run and modify pypulseq code':
+            'Load the GRE starter code, run it, and confirm you see a sequence diagram. '
+            'Then change one parameter (flip angle, TE, or TR) and run again. '
+            'Describe the change you observed in the output.',
+    },
 }

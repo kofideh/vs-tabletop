@@ -23,10 +23,9 @@
         />
 
 
-                  <link rel="stylesheet" href="../static/styles/style.css">
-
-            <link rel="stylesheet" href="../static/styles/bootstrap.min.css"> <!-- Theme -->
-        <link rel="stylesheet" href="../static/styles/base_rewrite.css">
+                  <link rel="stylesheet" href="{{ url_for('static', filename='styles/style.css') }}">
+            <link rel="stylesheet" href="{{ url_for('static', filename='styles/bootstrap.min.css') }}"> <!-- Theme -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='styles/base_rewrite.css') }}">
 
 
     <title>Virtual Scanner Tabletop</title>
@@ -167,6 +166,8 @@
                                 <a class="dropdown-item" href="/games/6" id="link-to-game6">Game 6: Relaxation Station</a>
                                 <a class="dropdown-item" href="/games/7" id="link-to-game7">Game 7: Puzzled by Projection I</a>
                                 <a class="dropdown-item" href="/games/8" id="link-to-game8">Game 8: Puzzled by Projection II</a>
+                                <a class="dropdown-item" href="/games/9" id="link-to-game9">Game 9: Artifacts!</a>
+                                <a class="dropdown-item" href="/games/10" id="link-to-game10">Game 10: Pulse Programmer</a>
                               </div>
                         </li>
                         <li class="nav-item">
@@ -294,7 +295,7 @@
 
           <!-- Sidebar and main content -->
            <div class="row h-100 collapse g-0 d-flex collapsable-sidebar", style="overflow-y: auto;">
-              <div class="col m-0 p-0 h-100 w-sidebar navbar-collapse collapse d-md-flex sidebar collapsable-sidebar">
+              <div class="col m-0 p-0 h-100 w-sidebar collapse d-md-flex sidebar collapsable-sidebar">
               <div class="row w-100 m-0">
 
                    <!-- Collapsible tasks -->
@@ -338,9 +339,6 @@
       <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.js" integrity="sha512-aMGMvNYu8Ue4G+fHa359jcPb1u+ytAF+P2SCb+PxrjCdO3n3ZTxJ30zuH39rimUggmTwmh2u7wvQsDTHESnmfQ==" crossorigin="anonymous"></script>
       <!-- MDB -->
       <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/4.4.0/mdb.min.js"></script>
-      <!-- Custom -->
-      <link rel="stylesheet" href="../static/styles/style.css">
-
       <!-- Additional, page-specific imports -->
       {% block additional_imports %}
       {% endblock %}

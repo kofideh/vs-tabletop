@@ -56,7 +56,7 @@ def num_questions_of_game(num, mc_model):
 
 
 def new_progress_of_game(num, mc_model):
-    num_steps_dict = {1:4, 2:4, 3:3, 4:4, 5:4, 6:4, 7:5, 8:3}
+    num_steps_dict = {1:4, 2:4, 3:3, 4:4, 5:4, 6:4, 7:5, 8:3, 9:5, 10:4}
     num_mc = num_questions_of_game(num, mc_model)
     return Progress(game_number=num, num_stars=0,
                     num_questions=num_mc, num_correct=0,

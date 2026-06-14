@@ -6,6 +6,9 @@ from scipy.io import loadmat
 import json
 from vstabletop.paths import DATA_PATH
 
+# Load once at import time so every game3_worker() call reads from memory, not disk.
+_BRAINWEB = loadmat(DATA_PATH / 'bw.mat')
+
 
 def game3_worker(TR,TE,FA,empty=False):
     """Generate brainweb brain image using sequence parameters
@@ -125,9 +128,7 @@ def get_image_json(TR,TE,FA):
 
 
 
-    # Load brainweb model
-    brainweb = loadmat(DATA_PATH / 'bw.mat')
-
+    brainweb = _BRAINWEB
     type_slice = brainweb['typemap'][:,:,87]
     # Show image
     px.imshow(type_slice)
@@ -176,7 +177,7 @@ def get_bargraph_json(TR,TE,FA,tissue_names):
     full_names = ['Background','CSF','GM','WM','Fat',
                   'Muscle/skin', 'Skin', 'Skull', 'Glia','Connective Tissue']
 
-    brainweb = loadmat(DATA_PATH / 'bw.mat')
+    brainweb = _BRAINWEB
     p = brainweb['params']
     names = [nl[0] for nl in brainweb['names'][0]]
     names_for_plot = [full_names[u] for u in [names.index(name) for name in tissue_names]]

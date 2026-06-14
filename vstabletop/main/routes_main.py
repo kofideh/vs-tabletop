@@ -22,6 +22,18 @@ bp_main = Blueprint('bp_main',__name__, template_folder="templates/main",url_pre
 logger = logging.getLogger(__name__)
 
 
+@bp_main.route('/health')
+def health():
+    """Healthcheck for Docker / load balancers. No auth required."""
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    status = 'ok' if db_ok else 'degraded'
+    return {'status': status, 'db': db_ok}, (200 if db_ok else 503)
+
+
 def _clerk_template_context():
     return {
         "clerk_enabled": clerk_enabled(),
@@ -149,27 +161,57 @@ def initialize_parameters():
                          'mc_status_list':utils.num_questions_of_game(8,MultipleChoice)*[False],
                          'task_completed':0}
 
+    session['game9'] = {
+        'phantom_type': 'shepp-logan',
+        'artifact_type': 'aliasing',
+        # Aliasing parameters
+        'fov_fraction': 0.7,
+        # Gibbs parameters
+        'kspace_fraction': 25.0,
+        # Motion parameters
+        'motion_amplitude': 0.5,
+        'motion_frequency': 3.0,
+        # Chemical shift parameters
+        'shift_pixels': 10.0,
+        # Susceptibility parameters
+        'sus_x': 0.0,
+        'sus_y': 0.0,
+        'sus_strength': 0.5,
+        # Progress tracking
+        'progress': utils.new_progress_of_game(9, MultipleChoice),
+        'mc_status_list': utils.num_questions_of_game(9, MultipleChoice) * [False],
+        'task_completed': 0,
+    }
+
+    session['game10'] = {
+        'seq_type': 'gre',
+        'mode': 'guided',
+        'te': 6.0,
+        'tr': 25.0,
+        'fa': 30.0,
+        'ti': 100.0,
+        'fov': 250.0,
+        'thk': 5.0,
+        'Nx': 64,
+        'Ny': 64,
+        'user_code': '',
+        'progress': utils.new_progress_of_game(10, MultipleChoice),
+        'mc_status_list': utils.num_questions_of_game(10, MultipleChoice) * [False],
+        'task_completed': 0,
+    }
 
 
 #@app.route('/logout')
 @bp_main.route('/logout')
 def logout():
-    # Save user progress (Game 5 example)
-
-    nums = [1,5]
-
-    for num in nums:
-        prog = session[f'game{num}']['progress']
-        db.session.add(prog)
-        try:
-            db.session.commit()
-            print("Progress saved!")
-            print(prog)
-        except Exception as e:
-            print("Failed to save progress to database")
-            print(e)
-            db.session.rollback()
-
+    try:
+        for num in range(1, 11):
+            db.session.add(session[f'game{num}']['progress'])
+        db.session.commit()
+        logger.info("Progress saved for all games.")
+    except Exception as e:
+        db.session.rollback()
+        logger.warning("Failed to save progress on logout: %s", e)
 
     user_for_log = current_user if current_user.is_authenticated else None
     _log_auth_event("logout", provider="local", user=user_for_log)
@@ -229,7 +271,8 @@ def login():
             if user.username == 'admin':
                 session['user']['role'] = 'administrator'
 
-            session['game5']['progress'].user_id = user.id # Attach progress to user
+            for num in range(1, 11):
+                session[f'game{num}']['progress'].user_id = user.id
 
             session.modified = True
 
@@ -328,7 +371,8 @@ def clerk_session_login():
     session['user']['username'] = user.username
     session['user']['date_joined'] = user.joined_at
     session['user']['role'] = 'administrator' if user.username == 'admin' else 'student'
-    session['game5']['progress'].user_id = user.id
+    for num in range(1, 11):
+        session[f'game{num}']['progress'].user_id = user.id
     session.modified = True
     return {"ok": True, "redirect": url_for('bp_main.index')}
 

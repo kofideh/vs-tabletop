@@ -1,4 +1,4 @@
-name: Docker Validation
+name: Docker
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  docker-build:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -20,4 +20,39 @@ jobs:
         run: docker compose config
 
       - name: Build app image
-        run: docker build -t vs-tabletop:ci .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: vs-tabletop:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+    # Only publish on merges to main, not on pull requests.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push to Docker Hub
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            mcbills/vs-games:latest
+            mcbills/vs-games:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

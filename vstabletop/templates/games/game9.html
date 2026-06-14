@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid h-100 p-2" style="overflow-y: auto;">
+
+    <!-- Top controls row -->
+    <div class="row align-items-center mb-2">
+        <div class="col-auto">
+            <label class="fw-bold me-1">Phantom:</label>
+            <select class="form-select form-select-sm d-inline-block w-auto" id="phantom-selector">
+                <option value="shepp-logan" {% if session['game9']['phantom_type'] == 'shepp-logan' %}selected{% endif %}>Shepp-Logan</option>
+                <option value="brainweb"    {% if session['game9']['phantom_type'] == 'brainweb'    %}selected{% endif %}>Brainweb</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="fw-bold me-1">Artifact:</label>
+            <div class="btn-group btn-group-sm" id="artifact-selector" role="group">
+                <button type="button" class="btn btn-outline-info artifact-btn {% if session['game9']['artifact_type'] == 'aliasing'       %}active{% endif %}" data-artifact="aliasing">Aliasing</button>
+                <button type="button" class="btn btn-outline-info artifact-btn {% if session['game9']['artifact_type'] == 'gibbs'          %}active{% endif %}" data-artifact="gibbs">Gibbs</button>
+                <button type="button" class="btn btn-outline-info artifact-btn {% if session['game9']['artifact_type'] == 'motion'         %}active{% endif %}" data-artifact="motion">Motion</button>
+                <button type="button" class="btn btn-outline-info artifact-btn {% if session['game9']['artifact_type'] == 'chemical_shift' %}active{% endif %}" data-artifact="chemical_shift">Chem. Shift</button>
+                <button type="button" class="btn btn-outline-info artifact-btn {% if session['game9']['artifact_type'] == 'susceptibility' %}active{% endif %}" data-artifact="susceptibility">Susceptibility</button>
+            </div>
+        </div>
+        <div class="col-auto ms-auto">
+            <button id="game9-run" class="btn btn-success">
+                <span class="spinner-border spinner-border-sm d-none" id="game9-spinner" role="status"></span>
+                RUN
+            </button>
+        </div>
+    </div>
+
+    <!-- Images row -->
+    <div class="row g-2 mb-2">
+        <div class="col-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold py-1">Reference image</div>
+                <div class="card-body p-1">
+                    <div id="chart-G9-ref" style="min-height:220px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold py-1" id="artifact-header">Artifact image</div>
+                <div class="card-body p-1">
+                    <div id="chart-G9-artifact" style="min-height:220px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parameters row -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-bold py-1">Parameters</div>
+                <div class="card-body py-2">
+
+                    <!-- Aliasing params -->
+                    <div id="params-aliasing" class="artifact-params">
+                        <div class="row align-items-center">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    PE FOV fraction: <span id="fov-fraction-val">{{ '%.2f'|format(session['game9']['fov_fraction']) }}</span>
+                                </label>
+                                <button type="button" class="btn btn-sm shadow-none p-0 ms-1"
+                                        data-mdb-toggle="popover" data-mdb-placement="top"
+                                        title="Phase-Encode FOV Fraction"
+                                        data-mdb-content="Ratio of the acquired FOV (in the PE direction) to the full object size. Values below 1 cause signal outside the FOV to wrap into the image.">
+                                    <i class="bi bi-question-circle-fill"></i></button>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="fov-fraction"
+                                       min="0.30" max="1.00" step="0.05"
+                                       value="{{ session['game9']['fov_fraction'] }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gibbs params -->
+                    <div id="params-gibbs" class="artifact-params d-none">
+                        <div class="row align-items-center">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    k-space kept: <span id="kspace-fraction-val">{{ session['game9']['kspace_fraction']|int }}</span>%
+                                </label>
+                                <button type="button" class="btn btn-sm shadow-none p-0 ms-1"
+                                        data-mdb-toggle="popover" data-mdb-placement="top"
+                                        title="k-space Fraction"
+                                        data-mdb-content="Percentage of k-space lines retained before reconstruction. Smaller values increase truncation and therefore Gibbs ringing at sharp edges.">
+                                    <i class="bi bi-question-circle-fill"></i></button>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="kspace-fraction"
+                                       min="5" max="100" step="5"
+                                       value="{{ session['game9']['kspace_fraction']|int }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [5, 20, 40, 60, 80, 100] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Motion params -->
+                    <div id="params-motion" class="artifact-params d-none">
+                        <div class="row align-items-center mb-2">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    Motion amplitude: <span id="motion-amplitude-val">{{ '%.2f'|format(session['game9']['motion_amplitude']) }}</span>
+                                </label>
+                                <button type="button" class="btn btn-sm shadow-none p-0 ms-1"
+                                        data-mdb-toggle="popover" data-mdb-placement="top"
+                                        title="Motion Amplitude"
+                                        data-mdb-content="Maximum displacement of the object (in units of image extent). Larger values produce more intense ghosting.">
+                                    <i class="bi bi-question-circle-fill"></i></button>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="motion-amplitude"
+                                       min="0.0" max="1.0" step="0.05"
+                                       value="{{ session['game9']['motion_amplitude'] }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row align-items-center">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    Motion frequency: <span id="motion-frequency-val">{{ session['game9']['motion_frequency']|int }}</span> cycles
+                                </label>
+                                <button type="button" class="btn btn-sm shadow-none p-0 ms-1"
+                                        data-mdb-toggle="popover" data-mdb-placement="top"
+                                        title="Motion Frequency"
+                                        data-mdb-content="Number of oscillation cycles during the full PE acquisition. This sets the ghost spacing in the image: ghosts appear at FOV / frequency intervals.">
+                                    <i class="bi bi-question-circle-fill"></i></button>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="motion-frequency"
+                                       min="1" max="10" step="1"
+                                       value="{{ session['game9']['motion_frequency']|int }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chemical shift params -->
+                    <div id="params-chemical_shift" class="artifact-params d-none">
+                        <div class="row align-items-center">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    Fat shift: <span id="shift-pixels-val">{{ session['game9']['shift_pixels']|int }}</span> px
+                                </label>
+                                <button type="button" class="btn btn-sm shadow-none p-0 ms-1"
+                                        data-mdb-toggle="popover" data-mdb-placement="top"
+                                        title="Chemical Shift (pixels)"
+                                        data-mdb-content="Number of pixels fat is shifted relative to water in the frequency-encode direction. Corresponds to fat-water frequency difference divided by receiver bandwidth per pixel.">
+                                    <i class="bi bi-question-circle-fill"></i></button>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="shift-pixels"
+                                       min="0" max="30" step="1"
+                                       value="{{ session['game9']['shift_pixels']|int }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [0, 5, 10, 15, 20, 25, 30] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Susceptibility params -->
+                    <div id="params-susceptibility" class="artifact-params d-none">
+                        <div class="row align-items-center mb-2">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    Strength: <span id="sus-strength-val">{{ '%.2f'|format(session['game9']['sus_strength']) }}</span>
+                                </label>
+                                <button type="button" class="btn btn-sm shadow-none p-0 ms-1"
+                                        data-mdb-toggle="popover" data-mdb-placement="top"
+                                        title="Susceptibility Strength"
+                                        data-mdb-content="Magnitude of the B0 field perturbation. Larger values give greater distortion and a wider signal void.">
+                                    <i class="bi bi-question-circle-fill"></i></button>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="sus-strength"
+                                       min="0.0" max="1.0" step="0.05"
+                                       value="{{ session['game9']['sus_strength'] }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row align-items-center mb-2">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    Source X: <span id="sus-x-val">{{ '%.2f'|format(session['game9']['sus_x']) }}</span>
+                                </label>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="sus-x"
+                                       min="-0.5" max="0.5" step="0.05"
+                                       value="{{ session['game9']['sus_x'] }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [-0.5, -0.25, 0.0, 0.25, 0.5] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row align-items-center">
+                            <div class="col-4">
+                                <label class="form-label mb-0">
+                                    Source Y: <span id="sus-y-val">{{ '%.2f'|format(session['game9']['sus_y']) }}</span>
+                                </label>
+                            </div>
+                            <div class="col-8">
+                                <input type="range" class="form-range" id="sus-y"
+                                       min="-0.5" max="0.5" step="0.05"
+                                       value="{{ session['game9']['sus_y'] }}">
+                                <div class="ticks text-primary">
+                                    {% for v in [-0.5, -0.25, 0.0, 0.25, 0.5] %}
+                                    <span class="tick">{{ v }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+
+{% block tasks %}
+<div class="card-body">
+    <div class="progress mb-1">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+             role="progressbar"
+             style="width: {{ session['game9']['task_completed'] * 20 }}%"
+             aria-valuenow="{{ session['game9']['task_completed'] * 20 }}"
+             aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+
+    <ul class="nav nav-tabs nav-justified" id="game9-tab" role="tablist">
+        {% for tab in instructions['tabs'] %}
+            {% if loop.index == ([session['game9']['task_completed'] + 1, 5] | min) %}
+                {% set active = 'active' %}
+            {% else %}
+                {% set active = '' %}
+            {% endif %}
+            {% set disabled = 'disabled' if loop.index > 1 + session['game9']['task_completed'] else '' %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {{ active }} {{ disabled }} text-info task_tab"
+                        id="task{{ loop.index }}-tab"
+                        data-bs-toggle="tab"
+                        data-bs-target="#step{{ loop.index }}"
+                        type="button" role="tab"
+                        aria-controls="step{{ loop.index }}"
+                        aria-selected="{{ loop.index == 1 }}"
+                        data-artifact="{{ ['aliasing','gibbs','motion','chemical_shift','susceptibility'][loop.index0] }}">
+                    {{ tab }}
+                </button>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <div style="overflow-y: auto; max-height: 70vh;">
+    <div class="tab-content" id="game9-tab-content">
+        {% for task, task_details in instructions['tasks'].items() %}
+            {% if loop.index == ([session['game9']['task_completed'] + 1, 5] | min) %}
+                {% set show_text = 'show' %}
+                {% set active_text = 'active' %}
+            {% else %}
+                {% set show_text = '' %}
+                {% set active_text = '' %}
+            {% endif %}
+
+            <div class="tab-pane fade {{ show_text }} {{ active_text }}"
+                 id="step{{ loop.index }}" role="tabpanel"
+                 aria-labelledby="step{{ loop.index }}-tab">
+
+                <div class="h4 text-info mt-2">{{ instructions['titles'][loop.index0] }}</div>
+
+                <ul class="accordion" id="instructions-accordion-{{ loop.index }}">
+                {% set task_index = loop.index %}
+                {% for step, details in instructions['explorations'][loop.index0].items() %}
+                    <li class="accordion-item">
+                        <div class="accordion-header row d-flex justify-content-center"
+                             id="heading-{{ task_index }}-{{ loop.index }}">
+                            <div class="col-2 d-flex align-items-center justify-content-center">
+                                <input class="form-check-input task-{{ task_index }}-check"
+                                       type="checkbox" value="" aria-label="">
+                            </div>
+                            <div class="col-10">
+                                <button class="accordion-button collapsed" type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#collapse-{{ task_index }}-{{ loop.index }}"
+                                        aria-expanded="false">
+                                    <strong>{{ step }}</strong>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="accordion-collapse collapse"
+                             id="collapse-{{ task_index }}-{{ loop.index }}"
+                             aria-labelledby="heading-{{ task_index }}-{{ loop.index }}"
+                             data-bs-parent="#instructions-accordion-{{ task_index }}">
+                            <div class="accordion-body">{{ details }}</div>
+                        </div>
+                    </li>
+                {% endfor %}
+
+                <!-- Final task item -->
+                <li class="accordion-item text-info">
+                    <div class="accordion-header row d-flex justify-content-center"
+                         id="heading-final-{{ task_index }}">
+                        <div class="col-2 d-flex align-items-center justify-content-center">
+                            <input class="form-check-input task-{{ task_index }}-check"
+                                   id="final-task-of-{{ task_index }}"
+                                   type="checkbox" disabled>
+                        </div>
+                        <div class="col-10">
+                            <button class="accordion-button collapsed final-task-button" type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#collapse-final-{{ task_index }}"
+                                    aria-expanded="false">
+                                <strong class="text-info">{{ task }}</strong>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="accordion-collapse collapse"
+                         id="collapse-final-{{ task_index }}"
+                         aria-labelledby="heading-final-{{ task_index }}"
+                         data-bs-parent="#instructions-accordion-{{ task_index }}">
+                        <div class="accordion-body">{{ task_details }}</div>
+                    </div>
+                </li>
+                </ul>
+
+                <div class="btn btn-info task-next-button mt-2" id="task{{ loop.index }}-next">Next</div>
+                <p class="d-none text-danger" id="task-message-{{ task_index }}">
+                    Complete and check all steps to move on.
+                </p>
+
+                {% set dnone = '' if session['game9']['task_completed'] >= task_index else 'd-none' %}
+                {% if task_index < 5 %}
+                    {% set success_message = 'Step complete! Move to the next artifact.' %}
+                {% else %}
+                    {% set success_message = 'All steps complete! Congratulations on finishing all games. Answer the quiz below to earn remaining stars.' %}
+                {% endif %}
+                <p class="{{ dnone }} text-success" id="task-success-{{ task_index }}">
+                    {{ success_message }}
+                </p>
+
+            </div>
+        {% endfor %}
+    </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block questions %}
+<div class="card text-white bg-secondary mb-3 text-center">
+    <div id="slide" class="carousel slide" data-bs-interval="false">
+        <div class="carousel-inner">
+            <form action="/games/9" method="POST">
+            {% if success_text | length > 0 %}
+            {% for ind in range(success_text | length) %}
+                {% set letters = ['a','b','c','d'] %}
+                {% set active_text = 'active' if ind == 0 else '' %}
+                <div class="carousel-item {{ active_text }}">
+                    <br>
+                    <span>Q{{ ind + 1 }}:</span>
+                    {{ questions[ind]['text'] }}
+                    {% if (questions[ind]['main_image_path']) | length > 0 %}
+                    <br><img src=".{{ questions[ind]['main_image_path'] }}" alt="question image" style="height:150px; width:auto">
+                    {% endif %}
+                    {% for ind2 in range(questions[ind]['choices'] | length) %}
+                        {% if not uses_images[ind] %}
+                        <br><input type="radio" class="q{{ ind }}-choice"
+                               id="q{{ ind }}-{{ letters[ind2] }}"
+                               name="mc-question" value="{{ letters[ind2] }}">
+                        <label for="q{{ ind }}-{{ letters[ind2] }}">{{ questions[ind]['choices'][ind2] }}</label>
+                        {% else %}
+                        <input type="radio" class="q{{ ind }}-choice"
+                               id="q{{ ind }}-{{ letters[ind2] }}"
+                               name="mc-question" value="{{ letters[ind2] }}">
+                        <label for="q{{ ind }}-{{ letters[ind2] }}">
+                            <img src=".{{ questions[ind]['choices'][ind2] }}" style="height:150px;width:150px;">
+                        </label>
+                        {% endif %}
+                    {% endfor %}
+                    <p class="d-none">Correct choice:
+                        <span id="mc-correct-choice-{{ ind }}">{{ questions[ind]['correct'] }}</span>
+                    </p>
+                    <br>
+                    <div class="btn btn-large btn-primary answer-mc" id="answer-mc-{{ ind }}">Submit</div>
+                    <p id="mc-success-text-{{ ind }}" class="d-none" style="color:palegreen">
+                        {{ success_text[ind] }}
+                    </p>
+                    <p id="mc-failure-text-{{ ind }}" class="d-none" style="color:#ffb500">
+                        Wrong answer, try again!
+                    </p>
+                </div>
+            {% endfor %}
+            {% else %}
+            <div class="carousel-item active p-3">
+                <p class="text-white">No quiz questions have been added for this game yet.</p>
+            </div>
+            {% endif %}
+            </form>
+        </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#slide" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#slide" data-bs-slide="next">
+            <span class="carousel-control-next-icon"></span>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block additional_imports %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="../static/game9.js"></script>
+<script type="text/javascript">
+    // Initial images (server-rendered on page load)
+    let init_ref      = {{ graphJSON_ref | safe }};
+    let init_artifact = {{ graphJSON_artifact | safe }};
+    Plotly.newPlot('chart-G9-ref',      init_ref.data,      init_ref.layout,      {displayModeBar: false, responsive: true});
+    Plotly.newPlot('chart-G9-artifact', init_artifact.data, init_artifact.layout, {displayModeBar: false, responsive: true});
+</script>
+{% endblock %}

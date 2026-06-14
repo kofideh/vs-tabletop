@@ -1,5 +1,6 @@
 
 from flask import flash, render_template, session, redirect, url_for
+from flask_login import login_required
 from vstabletop.forms import Game8Form
 from vstabletop.workers.game8_worker import game8_worker_project, game8_worker_load
 import vstabletop.utils as utils
@@ -10,6 +11,7 @@ from .. import socketio
 from .routes_game1 import bp_games
 
 @bp_games.route('/8',methods=["GET","POST"])
+@login_required
 def game8():
     info = session['game8']
     j1 = game8_worker_project(info, default=True)

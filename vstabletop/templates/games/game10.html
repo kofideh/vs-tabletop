@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid h-100 p-2" style="overflow-y: auto;">
+
+    <!-- Mode tabs -->
+    <ul class="nav nav-tabs mb-2" id="mode-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="guided-tab" data-bs-toggle="tab"
+                    data-bs-target="#guided-panel" type="button" role="tab">
+                <i class="fas fa-sliders-h me-1"></i>Guided Builder
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="code-tab" data-bs-toggle="tab"
+                    data-bs-target="#code-panel" type="button" role="tab">
+                <i class="fas fa-code me-1"></i>Code Editor
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- ── GUIDED MODE ──────────────────────────────────────────────────── -->
+        <div class="tab-pane fade show active" id="guided-panel" role="tabpanel">
+
+            <!-- Controls row -->
+            <div class="row align-items-end mb-2 g-2">
+
+                <!-- Sequence type -->
+                <div class="col-auto">
+                    <label class="form-label fw-bold mb-1">Sequence</label>
+                    <div class="btn-group btn-group-sm" id="seq-selector" role="group">
+                        <button type="button" class="btn btn-outline-primary seq-btn {% if session['game10']['seq_type'] == 'gre' %}active{% endif %}" data-seq="gre">GRE</button>
+                        <button type="button" class="btn btn-outline-primary seq-btn {% if session['game10']['seq_type'] == 'se'  %}active{% endif %}" data-seq="se">Spin Echo</button>
+                        <button type="button" class="btn btn-outline-primary seq-btn {% if session['game10']['seq_type'] == 'ir'  %}active{% endif %}" data-seq="ir">Inv. Recovery</button>
+                    </div>
+                </div>
+
+                <!-- TR -->
+                <div class="col-auto">
+                    <label class="form-label mb-1">TR (ms)</label>
+                    <input type="number" class="form-control form-control-sm" id="g10-tr"
+                           min="10" max="5000" step="5"
+                           value="{{ session['game10']['tr']|int }}" style="width:85px">
+                </div>
+
+                <!-- TE -->
+                <div class="col-auto">
+                    <label class="form-label mb-1">TE (ms)</label>
+                    <input type="number" class="form-control form-control-sm" id="g10-te"
+                           min="1" max="200" step="1"
+                           value="{{ session['game10']['te']|int }}" style="width:75px">
+                </div>
+
+                <!-- FA -->
+                <div class="col-auto">
+                    <label class="form-label mb-1">FA (°)</label>
+                    <input type="number" class="form-control form-control-sm" id="g10-fa"
+                           min="1" max="180" step="1"
+                           value="{{ session['game10']['fa']|int }}" style="width:75px">
+                </div>
+
+                <!-- TI (IR only) -->
+                <div class="col-auto" id="ti-group" {% if session['game10']['seq_type'] != 'ir' %}style="display:none"{% endif %}>
+                    <label class="form-label mb-1">TI (ms)</label>
+                    <input type="number" class="form-control form-control-sm" id="g10-ti"
+                           min="10" max="3000" step="10"
+                           value="{{ session['game10']['ti']|int }}" style="width:85px">
+                </div>
+
+                <!-- RUN -->
+                <div class="col-auto ms-auto">
+                    <button id="g10-run" class="btn btn-success btn-sm">
+                        <span class="spinner-border spinner-border-sm d-none" id="g10-spinner" role="status"></span>
+                        RUN
+                    </button>
+                </div>
+            </div>
+
+            <!-- Plots row -->
+            <div class="row g-2 mb-2">
+                <div class="col-12 col-lg-8">
+                    <div class="card h-100">
+                        <div class="card-header fw-bold py-1">Sequence diagram</div>
+                        <div class="card-body p-1">
+                            <div id="chart-G10-diagram" style="min-height:300px;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-4">
+                    <div class="card mb-2">
+                        <div class="card-header fw-bold py-1">k-space trajectory</div>
+                        <div class="card-body p-1">
+                            <div id="chart-G10-kspace" style="min-height:180px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generated code -->
+            <div class="card mb-2">
+                <div class="card-header fw-bold py-1 d-flex align-items-center">
+                    Generated pypulseq code
+                    <button class="btn btn-sm btn-outline-secondary ms-auto" id="copy-code-btn">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                    <button class="btn btn-sm btn-outline-info ms-1" id="send-to-editor-btn">
+                        <i class="fas fa-arrow-right"></i> Open in Editor
+                    </button>
+                </div>
+                <div class="card-body p-0" style="max-height:220px; overflow-y:auto;">
+                    <textarea id="guided-code-display" class="w-100" style="display:none;">{{ init_code }}</textarea>
+                    <div id="guided-codemirror-container"></div>
+                </div>
+            </div>
+
+        </div><!-- /guided-panel -->
+
+
+        <!-- ── CODE EDITOR MODE ─────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="code-panel" role="tabpanel">
+
+            <!-- Toolbar -->
+            <div class="row align-items-center mb-2 g-2">
+                <div class="col-auto">
+                    <span class="fw-bold me-2">Quick load:</span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" id="load-gre">GRE</button>
+                        <button class="btn btn-outline-secondary" id="load-se">SE</button>
+                        <button class="btn btn-outline-secondary" id="load-ir">IR</button>
+                    </div>
+                </div>
+                <div class="col-auto ms-auto">
+                    <button class="btn btn-success btn-sm" id="g10-run-code">
+                        <span class="spinner-border spinner-border-sm d-none" id="g10-code-spinner" role="status"></span>
+                        <i class="fas fa-play me-1"></i>RUN
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor -->
+            <div class="card mb-2">
+                <div class="card-header fw-bold py-1">Python / pypulseq editor</div>
+                <div class="card-body p-0">
+                    <textarea id="code-editor" style="display:none;">{{ init_code }}</textarea>
+                    <div id="user-codemirror-container"></div>
+                </div>
+            </div>
+
+            <!-- Output -->
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header fw-bold py-1">Output</div>
+                        <div class="card-body p-2" style="max-height:200px; overflow-y:auto;">
+                            <pre id="code-stdout" class="mb-0" style="font-size:0.78rem; white-space:pre-wrap;">(press RUN to execute)</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header fw-bold py-1">Errors / warnings</div>
+                        <div class="card-body p-2" style="max-height:200px; overflow-y:auto;">
+                            <pre id="code-stderr" class="mb-0 text-danger" style="font-size:0.78rem; white-space:pre-wrap;"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Captured figures -->
+            <div id="code-figures" class="row g-2 mt-1"></div>
+
+        </div><!-- /code-panel -->
+
+    </div><!-- /tab-content -->
+</div>
+{% endblock %}
+
+
+{% block tasks %}
+<div class="card-body">
+    <div class="progress mb-1">
+        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+             role="progressbar"
+             style="width: {{ session['game10']['task_completed'] * 25 }}%"
+             aria-valuenow="{{ session['game10']['task_completed'] * 25 }}"
+             aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+
+    <ul class="nav nav-tabs nav-justified" id="game10-tab" role="tablist">
+        {% for tab in instructions['tabs'] %}
+            {% if loop.index == ([session['game10']['task_completed'] + 1, 4] | min) %}
+                {% set active = 'active' %}
+            {% else %}
+                {% set active = '' %}
+            {% endif %}
+            {% set disabled = 'disabled' if loop.index > 1 + session['game10']['task_completed'] else '' %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {{ active }} {{ disabled }} text-info task_tab"
+                        id="task{{ loop.index }}-tab"
+                        data-bs-toggle="tab"
+                        data-bs-target="#step{{ loop.index }}"
+                        type="button" role="tab"
+                        data-seq="{{ ['gre','se','ir','code'][loop.index0] }}">
+                    {{ tab }}
+                </button>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <div style="overflow-y: auto; max-height: 70vh;">
+    <div class="tab-content" id="game10-tab-content">
+        {% for task, task_details in instructions['tasks'].items() %}
+            {% if loop.index == ([session['game10']['task_completed'] + 1, 4] | min) %}
+                {% set show_text = 'show' %}
+                {% set active_text = 'active' %}
+            {% else %}
+                {% set show_text = '' %}
+                {% set active_text = '' %}
+            {% endif %}
+
+            <div class="tab-pane fade {{ show_text }} {{ active_text }}"
+                 id="step{{ loop.index }}" role="tabpanel">
+
+                <div class="h4 text-info mt-2">{{ instructions['titles'][loop.index0] }}</div>
+
+                <ul class="accordion" id="instructions-accordion-{{ loop.index }}">
+                {% set task_index = loop.index %}
+                {% for step, details in instructions['explorations'][loop.index0].items() %}
+                    <li class="accordion-item">
+                        <div class="accordion-header row d-flex justify-content-center"
+                             id="heading-{{ task_index }}-{{ loop.index }}">
+                            <div class="col-2 d-flex align-items-center justify-content-center">
+                                <input class="form-check-input task-{{ task_index }}-check"
+                                       type="checkbox" value="" aria-label="">
+                            </div>
+                            <div class="col-10">
+                                <button class="accordion-button collapsed" type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#collapse-{{ task_index }}-{{ loop.index }}"
+                                        aria-expanded="false">
+                                    <strong>{{ step }}</strong>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="accordion-collapse collapse"
+                             id="collapse-{{ task_index }}-{{ loop.index }}"
+                             aria-labelledby="heading-{{ task_index }}-{{ loop.index }}"
+                             data-bs-parent="#instructions-accordion-{{ task_index }}">
+                            <div class="accordion-body">{{ details }}</div>
+                        </div>
+                    </li>
+                {% endfor %}
+
+                <!-- Final task item -->
+                <li class="accordion-item text-info">
+                    <div class="accordion-header row d-flex justify-content-center"
+                         id="heading-final-{{ task_index }}">
+                        <div class="col-2 d-flex align-items-center justify-content-center">
+                            <input class="form-check-input task-{{ task_index }}-check"
+                                   id="final-task-of-{{ task_index }}"
+                                   type="checkbox" disabled>
+                        </div>
+                        <div class="col-10">
+                            <button class="accordion-button collapsed final-task-button" type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#collapse-final-{{ task_index }}"
+                                    aria-expanded="false">
+                                <strong class="text-info">{{ task }}</strong>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="accordion-collapse collapse"
+                         id="collapse-final-{{ task_index }}"
+                         aria-labelledby="heading-final-{{ task_index }}"
+                         data-bs-parent="#instructions-accordion-{{ task_index }}">
+                        <div class="accordion-body">{{ task_details }}</div>
+                    </div>
+                </li>
+                </ul>
+
+                <div class="btn btn-info task-next-button mt-2" id="task{{ loop.index }}-next">Next</div>
+                <p class="d-none text-danger" id="task-message-{{ task_index }}">
+                    Complete and check all steps to move on.
+                </p>
+
+                {% set dnone = '' if session['game10']['task_completed'] >= task_index else 'd-none' %}
+                {% if task_index < 4 %}
+                    {% set success_message = 'Step complete! Move to the next sequence.' %}
+                {% else %}
+                    {% set success_message = 'All steps complete! Answer the quiz to earn more stars.' %}
+                {% endif %}
+                <p class="{{ dnone }} text-success" id="task-success-{{ task_index }}">
+                    {{ success_message }}
+                </p>
+
+            </div>
+        {% endfor %}
+    </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block questions %}
+<div class="card text-white bg-secondary mb-3 text-center">
+    <div id="slide" class="carousel slide" data-bs-interval="false">
+        <div class="carousel-inner">
+            <form action="/games/10" method="POST">
+            {% if success_text | length > 0 %}
+            {% for ind in range(success_text | length) %}
+                {% set letters = ['a','b','c','d'] %}
+                {% set active_text = 'active' if ind == 0 else '' %}
+                <div class="carousel-item {{ active_text }}">
+                    <br>
+                    <span>Q{{ ind + 1 }}:</span>
+                    {{ questions[ind]['text'] }}
+                    {% if (questions[ind]['main_image_path']) | length > 0 %}
+                    <br><img src=".{{ questions[ind]['main_image_path'] }}" alt="question image" style="height:150px; width:auto">
+                    {% endif %}
+                    {% for ind2 in range(questions[ind]['choices'] | length) %}
+                        {% if not uses_images[ind] %}
+                        <br><input type="radio" class="q{{ ind }}-choice"
+                               id="q{{ ind }}-{{ letters[ind2] }}"
+                               name="mc-question" value="{{ letters[ind2] }}">
+                        <label for="q{{ ind }}-{{ letters[ind2] }}">{{ questions[ind]['choices'][ind2] }}</label>
+                        {% else %}
+                        <input type="radio" class="q{{ ind }}-choice"
+                               id="q{{ ind }}-{{ letters[ind2] }}"
+                               name="mc-question" value="{{ letters[ind2] }}">
+                        <label for="q{{ ind }}-{{ letters[ind2] }}">
+                            <img src=".{{ questions[ind]['choices'][ind2] }}" style="height:150px;width:150px;">
+                        </label>
+                        {% endif %}
+                    {% endfor %}
+                    <p class="d-none">Correct choice:
+                        <span id="mc-correct-choice-{{ ind }}">{{ questions[ind]['correct'] }}</span>
+                    </p>
+                    <br>
+                    <div class="btn btn-large btn-primary answer-mc" id="answer-mc-{{ ind }}">Submit</div>
+                    <p id="mc-success-text-{{ ind }}" class="d-none" style="color:palegreen">
+                        {{ success_text[ind] }}
+                    </p>
+                    <p id="mc-failure-text-{{ ind }}" class="d-none" style="color:#ffb500">
+                        Wrong answer, try again!
+                    </p>
+                </div>
+            {% endfor %}
+            {% else %}
+            <div class="carousel-item active p-3">
+                <p class="text-white">No quiz questions have been added for this game yet.</p>
+            </div>
+            {% endif %}
+            </form>
+        </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#slide" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#slide" data-bs-slide="next">
+            <span class="carousel-control-next-icon"></span>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block additional_imports %}
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<!-- CodeMirror 5 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/eclipse.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+
+<style>
+.CodeMirror { height: auto; min-height: 200px; font-size: 0.78rem; }
+#user-codemirror-container .CodeMirror { min-height: 320px; }
+</style>
+
+<script>
+// ── Initial Plotly charts ────────────────────────────────────────────────────
+var _init_diagram = {{ graphJSON_diagram | safe }};
+var _init_kspace  = {{ graphJSON_kspace  | safe }};
+const _plotCfg    = { displayModeBar: false, responsive: true };
+Plotly.newPlot('chart-G10-diagram', _init_diagram.data, _init_diagram.layout, _plotCfg);
+Plotly.newPlot('chart-G10-kspace',  _init_kspace.data,  _init_kspace.layout,  _plotCfg);
+
+// ── Read-only CodeMirror (guided mode code display) ──────────────────────────
+var guidedEditor = CodeMirror(document.getElementById('guided-codemirror-container'), {
+    value: document.getElementById('guided-code-display').value,
+    mode: 'python',
+    theme: 'eclipse',
+    lineNumbers: true,
+    readOnly: true,
+    lineWrapping: false,
+    viewportMargin: Infinity,
+});
+
+// ── Editable CodeMirror (code editor mode) ───────────────────────────────────
+var userEditor = CodeMirror(document.getElementById('user-codemirror-container'), {
+    value: document.getElementById('code-editor').value,
+    mode: 'python',
+    theme: 'eclipse',
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    lineWrapping: false,
+    extraKeys: { 'Tab': 'indentMore', 'Shift-Tab': 'indentLess' },
+});
+</script>
+
+<script src="../static/game10.js"></script>
+{% endblock %}

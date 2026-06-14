@@ -4,11 +4,10 @@ from vstabletop.workers.game2_worker import make_empty_graphs, game2_worker_fetc
                                             retrieve_erase_mask
 from vstabletop.info import GAME2_INSTRUCTIONS, GAME2_BACKGROUND
 from flask import flash, render_template, session, redirect, url_for, request
+from flask_login import login_required
 from urllib.request import urlopen
-from werkzeug.utils import secure_filename
 from vstabletop.forms import Game2Form
 import vstabletop.utils as utils
-from vstabletop.paths import IMG_PATH
 from vstabletop.paths import IMG_PATH
 import numpy as np
 import json
@@ -31,6 +30,7 @@ def allowed_file(filename):
 
 # Games
 @bp_games.route('/2',methods=["GET","POST"])
+@login_required
 def game2_view():
     G2Form = Game2Form()
     j1, j2 = make_empty_graphs()
@@ -39,25 +39,18 @@ def game2_view():
 
     # User uploaded image!
     if request.method == 'POST':
-        #uploaded = request.form.get('uploaded')
-        print('Uploaded data: ', request.files)
-
-        if 'file' not in request.files:
-            print('No file uploaded')
-            file = ''
-        else:
-            file = request.files['file']
-        if file.filename == '':
-            flash('No selected file')
+        file = request.files.get('file')
+        if file is None or file.filename == '':
+            flash('No file selected.')
             return redirect(request.url)
-        if file and allowed_file(file.filename):
-            #filename = secure_filename(file.filename)
-            ext = file.filename.split('.')[-1]
-            file.save(os.path.join(UPLOAD_FOLDER_GAME2, f'user_uploaded.{ext}'))
-            utils.update_session_subdict(session,'game2',{'source':'upload'})
-
-        if session['game2']['source'] == 'upload':
-            generate_new_image('upload')
+        if not allowed_file(file.filename):
+            flash('File type not allowed. Please upload a PNG, JPG, JPEG, or GIF.')
+            return redirect(request.url)
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        file.save(os.path.join(UPLOAD_FOLDER_GAME2, f'user_uploaded.{ext}'))
+        utils.update_session_subdict(session, 'game2', {'source': 'upload'})
+        flash('Image uploaded! Click "Get image" to display it.')
+        return redirect(url_for('bp_games.game2_view'))
 
     return render_template('games/game2.html',template_title="K-space magik",template_intro_text="Can you find your way?",
                            template_game_form=G2Form, graphJSON_left=j1, graphJSON_right=j2,
@@ -128,8 +121,10 @@ def generate_new_kspace(payload):
 
 @socketio.on('Perform forward transform')
 def forward_transform():
-    # Use current session info
     input = session['game2']['data_left']
+    if input is None:
+        socketio.emit('message', {'text': 'No data loaded yet. Click "Get signal" or "Get image" first.', 'type': 'warning'})
+        return
     scale = session['game2']['scale_left']
     graphJSON, data, scale = game2_worker_convert(input, scale, forward=True)
     utils.update_session_subdict(session,'game2',{'data_right': data, 'scale_right': scale})
@@ -143,13 +138,14 @@ def forward_transform():
 
 @socketio.on('Perform backward transform')
 def backward_transform():
-    # Use current session info
     input = session['game2']['data_right']
+    if input is None:
+        socketio.emit('message', {'text': 'No frequency data loaded yet. Click "Get spectrum" or "Get k-space" first.', 'type': 'warning'})
+        return
     scale = session['game2']['scale_right']
 
     graphJSON, data, scale = game2_worker_convert(input, scale, forward=False)
 
-    # Update session too.
     utils.update_session_subdict(session,'game2',{'data_left': data, 'scale_left': scale})
     if len(input.shape) == 2:
         socketio.emit('Deliver image',{'graph': graphJSON})
@@ -179,8 +175,9 @@ def process_erasing_mask(payload):
     with open(IMG_PATH / 'Game2' / 'erase.png', 'wb') as f:
         f.write(data)
 
-    print('Session data right shape')
-    print(session['game2']['data_right'].shape)
+    if session['game2']['data_right'] is None:
+        socketio.emit('message', {'text': 'No k-space data to erase. Load a k-space or spectrum first.', 'type': 'warning'})
+        return
     mask = retrieve_erase_mask(shape=session['game2']['data_right'].shape)
     utils.update_session_subdict(session,'game2',{'erase_mask': mask})
     socketio.emit('message', {'text':'Erasing applied!','type':'success'})
@@ -189,6 +186,9 @@ def process_erasing_mask(payload):
 
 @socketio.on('Reset erase')
 def cancel_erase():
+    if session['game2']['data_right'] is None:
+        socketio.emit('message', {'text': 'No frequency data to reset.', 'type': 'warning'})
+        return
     mask = np.ones(session['game2']['data_right'].shape)
     utils.update_session_subdict(session,'game2',{'erase_mask': mask})
     update_chart_right()
@@ -219,6 +219,9 @@ def revert_to_preset():
 
 @socketio.on('Use slicer info')
 def apply_slicer(payload):
+    if session['game2']['data_right'] is None:
+        socketio.emit('message', {'text': 'No k-space data to sample. Load a k-space first.', 'type': 'warning'})
+        return
     Nx, Ny = session['game2']['data_right'].shape
     mask = np.zeros((Nx,Ny))
     # Apply k-space restriction
@@ -264,7 +267,7 @@ def game2_update_progress(msg):
         # Update database object
         session['game2']['progress'].num_steps_complete = task
         session['game2']['progress'].update_stars()
-        print('Game 2 progress updated: ', session['game5']['progress'])
+        print('Game 2 progress updated: ', session['game2']['progress'])
         socketio.emit('renew stars',{'stars': session['game2']['progress'].num_stars})
 
 
